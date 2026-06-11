@@ -81,65 +81,11 @@ export const mockProducts: Product[] = [
 ];
 
 // ==========================================
-// 4. РЕАЛЬНЫЕ ФУНКЦИИ К БАЗЕ D1
+// 4. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ==========================================
-export async function getCategories(): Promise<Category[]> {
-  try {
-    const context = getRequestContext();
-    if (!context || !context.env || !context.env.DB) {
-      console.warn('D1 не подключена, используем заглушки');
-      return mockCategories;
-    }
-    const db = context.env.DB;
-    const response = await db.prepare('SELECT * FROM categories').all<Category>();
-    return (response.results && response.results.length > 0) ? response.results : mockCategories;
-  } catch (error) {
-    console.error('Ошибка D1:', error);
-    return mockCategories;
-  }
-}
-
-export async function getProducts(categorySlug?: string): Promise<Product[]> {
-  try {
-    const context = getRequestContext();
-    if (!context || !context.env || !context.env.DB) {
-      return getMockProducts(categorySlug);
-    }
-    const db = context.env.DB;
-    
-    if (categorySlug) {
-      const response = await db.prepare(`
-        SELECT p.* FROM products p
-        JOIN categories c ON p.category_id = c.id
-        WHERE c.slug = ?
-      `).bind(categorySlug).all<Product>();
-      
-      return (response.results && response.results.length > 0) ? response.results : getMockProducts(categorySlug);
-    } else {
-      const response = await db.prepare('SELECT * FROM products').all<Product>();
-      return (response.results && response.results.length > 0) ? response.results : getMockProducts();
-    }
-  } catch (error) {
-    console.error('Ошибка D1:', error);
-    return getMockProducts(categorySlug);
-  }
-}
-
-// НОВАЯ ФУНКЦИЯ ДЛЯ ШАГА 1 (Получение конкретного товара по ID)
-export async function getProductById(id: number): Promise<Product | null> {
-  try {
-    const context = getRequestContext();
-    if (!context || !context.env || !context.env.DB) {
-      return mockProducts.find(p => p.id === id) || null;
-    }
-    const db = context.env.DB;
-    
-    const response = await db.prepare('SELECT * FROM products WHERE id = ?').bind(id).all<Product>();
-    return (response.results && response.results.length > 0) ? response.results[0] : (mockProducts.find(p => p.id === id) || null);
-  } catch (error) {
-    console.error('Ошибка D1: товар не найден, ищем в заглушках');
-    return mockProducts.find(p => p.id === id) || null;
-  }
+function getDb() {
+  const context = getRequestContext();
+  return (context.env as unknown as CloudflareEnv).DB;
 }
 
 function getMockProducts(categorySlug?: string) {
@@ -148,4 +94,49 @@ function getMockProducts(categorySlug?: string) {
     return category ? mockProducts.filter((p) => p.category_id === category.id) : [];
   }
   return mockProducts;
+}
+
+// ==========================================
+// 5. ЭКСПОРТИРУЕМЫЕ ФУНКЦИИ БАЗЫ D1
+// ==========================================
+export async function getCategories(): Promise<Category[]> {
+  try {
+    const db = getDb();
+    const response = await db.prepare('SELECT * FROM categories').all<Category>();
+    return response.results.length > 0 ? response.results : mockCategories;
+  } catch (error) {
+    console.error('Ошибка D1 (categories):', error);
+    return mockCategories;
+  }
+}
+
+export async function getProducts(categorySlug?: string): Promise<Product[]> {
+  try {
+    const db = getDb();
+    if (categorySlug) {
+      const response = await db.prepare(`
+        SELECT p.* FROM products p
+        JOIN categories c ON p.category_id = c.id
+        WHERE c.slug = ?
+      `).bind(categorySlug).all<Product>();
+      
+      return response.results.length > 0 ? response.results : getMockProducts(categorySlug);
+    }
+    const response = await db.prepare('SELECT * FROM products').all<Product>();
+    return response.results.length > 0 ? response.results : getMockProducts();
+  } catch (error) {
+    console.error('Ошибка D1 (products):', error);
+    return getMockProducts(categorySlug);
+  }
+}
+
+export async function getProductById(id: number): Promise<Product | null> {
+  try {
+    const db = getDb();
+    const response = await db.prepare('SELECT * FROM products WHERE id = ?').bind(id).all<Product>();
+    return response.results.length > 0 ? response.results[0] : (mockProducts.find(p => p.id === id) || null);
+  } catch (error) {
+    console.error('Ошибка D1 (product by id):', error);
+    return mockProducts.find(p => p.id === id) || null;
+  }
 }
