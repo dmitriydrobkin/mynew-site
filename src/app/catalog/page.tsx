@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { mockCategories, mockProducts } from "@/lib/db";
 import Link from "next/link";
 import { ProductCard } from "@/components/catalog/ProductCard";
