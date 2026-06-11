@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { mockProducts } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Image from "next/image";
