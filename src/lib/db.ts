@@ -1,3 +1,5 @@
+import { getRequestContext } from "@cloudflare/next-on-pages";
+
 export interface Category {
   id: number;
   slug: string;
@@ -35,7 +37,7 @@ export interface OrderItem {
   price: number;
 }
 
-// Заглушки (Mock data) для разработки и тестирования, когда БД пуста
+// Заглушки (на случай, если реальная БД пока пуста)
 export const mockCategories: Category[] = [
   { id: 1, slug: 'signature-chocolates', title: 'Авторские конфеты', description: 'Уникальные конфеты ручной работы' },
   { id: 2, slug: 'premium-chocolate', title: 'Премиальный шоколад', description: 'Отборный шоколад высшего качества' },
@@ -50,3 +52,49 @@ export const mockProducts: Product[] = [
   { id: 5, category_id: 2, slug: 'milk-chocolate-nuts', title: 'Молочный шоколад с орехами', price: 400, description: 'Нежный молочный шоколад с цельным фундуком.', image_url: 'https://placehold.co/600x600/1c1917/d4af37?text=Орехи', is_bestseller: false, in_stock: true },
   { id: 6, category_id: 1, slug: 'raspberry-kiss', title: 'Малиновый поцелуй', price: 160, description: 'Конфета из белого шоколада с малиновым ганашем.', image_url: 'https://placehold.co/600x600/1c1917/d4af37?text=Малина', is_bestseller: false, in_stock: true },
 ];
+
+// РЕАЛЬНЫЕ ФУНКЦИИ БАЗЫ ДАННЫХ ДЛЯ CLOUDFLARE D1
+export async function getCategories(): Promise<Category[]> {
+  try {
+    const db = getRequestContext().env.DB;
+    const { results } = await db.prepare('SELECT * FROM categories').all<Category>();
+    // Если таблица пуста, отдаем заглушки, чтобы не ломать дизайн
+    return results.length > 0 ? results : mockCategories;
+  } catch (error) {
+    console.error('Ошибка D1: таблица категорий не найдена, используем заглушки');
+    return mockCategories;
+  }
+}
+
+export async function getProducts(categorySlug?: string): Promise<Product[]> {
+  try {
+    const db = getRequestContext().env.DB;
+    let results = [];
+    
+    if (categorySlug) {
+      const response = await db.prepare(`
+        SELECT p.* FROM products p
+        JOIN categories c ON p.category_id = c.id
+        WHERE c.slug = ?
+      `).bind(categorySlug).all<Product>();
+      results = response.results;
+    } else {
+      const response = await db.prepare('SELECT * FROM products').all<Product>();
+      results = response.results;
+    }
+
+    return results.length > 0 ? results : getMockProducts(categorySlug);
+  } catch (error) {
+    console.error('Ошибка D1: таблица товаров не найдена, используем заглушки');
+    return getMockProducts(categorySlug);
+  }
+}
+
+// Вспомогательная функция для безопасного фолбэка
+function getMockProducts(categorySlug?: string) {
+  if (categorySlug) {
+    const category = mockCategories.find((c) => c.slug === categorySlug);
+    return category ? mockProducts.filter((p) => p.category_id === category.id) : [];
+  }
+  return mockProducts;
+}
