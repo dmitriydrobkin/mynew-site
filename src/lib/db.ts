@@ -1,5 +1,30 @@
 import { getRequestContext } from "@cloudflare/next-on-pages";
 
+// ==========================================
+// 1. СТРОГИЕ ТИПЫ ДЛЯ БАЗЫ ДАННЫХ CLOUDFLARE D1
+// ==========================================
+export interface D1Result<T = unknown> {
+  results: T[];
+  success: boolean;
+  meta: any;
+}
+
+export interface D1PreparedStatement {
+  bind(...values: any[]): D1PreparedStatement;
+  all<T = unknown>(): Promise<D1Result<T>>;
+}
+
+export interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+}
+
+export interface CloudflareEnv {
+  DB: D1Database;
+}
+
+// ==========================================
+// 2. ТИПЫ ДАННЫХ НАШЕГО МАГАЗИНА
+// ==========================================
 export interface Category {
   id: number;
   slug: string;
@@ -37,7 +62,9 @@ export interface OrderItem {
   price: number;
 }
 
-// Заглушки (на случай, если реальная БД пока пуста)
+// ==========================================
+// 3. ЗАГЛУШКИ (Mock data)
+// ==========================================
 export const mockCategories: Category[] = [
   { id: 1, slug: 'signature-chocolates', title: 'Авторские конфеты', description: 'Уникальные конфеты ручной работы' },
   { id: 2, slug: 'premium-chocolate', title: 'Премиальный шоколад', description: 'Отборный шоколад высшего качества' },
@@ -53,13 +80,18 @@ export const mockProducts: Product[] = [
   { id: 6, category_id: 1, slug: 'raspberry-kiss', title: 'Малиновый поцелуй', price: 160, description: 'Конфета из белого шоколада с малиновым ганашем.', image_url: 'https://placehold.co/600x600/1c1917/d4af37?text=Малина', is_bestseller: false, in_stock: true },
 ];
 
-// РЕАЛЬНЫЕ ФУНКЦИИ БАЗЫ ДАННЫХ ДЛЯ CLOUDFLARE D1
+// ==========================================
+// 4. РЕАЛЬНЫЕ ФУНКЦИИ К БАЗЕ D1
+// ==========================================
 export async function getCategories(): Promise<Category[]> {
   try {
-    const db = getRequestContext().env.DB;
-    const { results } = await db.prepare('SELECT * FROM categories').all<Category>();
-    // Если таблица пуста, отдаем заглушки, чтобы не ломать дизайн
-    return results.length > 0 ? results : mockCategories;
+    // Честно сообщаем TypeScript, что лежит в окружении
+    const env = getRequestContext().env as unknown as CloudflareEnv;
+    const db = env.DB;
+    
+    // Запрос с привязкой возвращаемого типа <Category>
+    const response = await db.prepare('SELECT * FROM categories').all<Category>();
+    return response.results.length > 0 ? response.results : mockCategories;
   } catch (error) {
     console.error('Ошибка D1: таблица категорий не найдена, используем заглушки');
     return mockCategories;
@@ -68,8 +100,8 @@ export async function getCategories(): Promise<Category[]> {
 
 export async function getProducts(categorySlug?: string): Promise<Product[]> {
   try {
-    const db = getRequestContext().env.DB;
-    let results = [];
+    const env = getRequestContext().env as unknown as CloudflareEnv;
+    const db = env.DB;
     
     if (categorySlug) {
       const response = await db.prepare(`
@@ -77,20 +109,18 @@ export async function getProducts(categorySlug?: string): Promise<Product[]> {
         JOIN categories c ON p.category_id = c.id
         WHERE c.slug = ?
       `).bind(categorySlug).all<Product>();
-      results = response.results;
+      
+      return response.results.length > 0 ? response.results : getMockProducts(categorySlug);
     } else {
       const response = await db.prepare('SELECT * FROM products').all<Product>();
-      results = response.results;
+      return response.results.length > 0 ? response.results : getMockProducts();
     }
-
-    return results.length > 0 ? results : getMockProducts(categorySlug);
   } catch (error) {
     console.error('Ошибка D1: таблица товаров не найдена, используем заглушки');
     return getMockProducts(categorySlug);
   }
 }
 
-// Вспомогательная функция для безопасного фолбэка
 function getMockProducts(categorySlug?: string) {
   if (categorySlug) {
     const category = mockCategories.find((c) => c.slug === categorySlug);
