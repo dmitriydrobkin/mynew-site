@@ -2,7 +2,6 @@
 
 import { useCartStore } from "@/store/cart";
 import { Product } from "@/lib/db";
-import Image from "next/image";
 import Link from "next/link";
 import { ShoppingBag } from "lucide-react";
 import { useState } from "react";
@@ -31,11 +30,11 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <div className="group flex flex-col h-full bg-white p-4 shadow-sm hover:shadow-xl transition-all duration-500 rounded-lg">
       <Link href={`/product/${product.id}`} className="relative block overflow-hidden aspect-square bg-gray-50 mb-6 rounded-md">
-        <Image
+        {/* ИСПОЛЬЗУЕМ СТАНДАРТНЫЙ ТЕГ IMG ВМЕСТО NEXT/IMAGE */}
+        <img
           src={product.image_url || "https://placehold.co/600x600/1c1917/d4af37?text=Товар"}
           alt={product.title}
-          fill
-          className="object-cover transition-transform duration-700 group-hover:scale-105"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
         {/* Overlay on hover */}
         <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
