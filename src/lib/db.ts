@@ -85,23 +85,27 @@ export const mockProducts: Product[] = [
 // ==========================================
 export async function getCategories(): Promise<Category[]> {
   try {
-    // Честно сообщаем TypeScript, что лежит в окружении
-    const env = getRequestContext().env as unknown as CloudflareEnv;
-    const db = env.DB;
-    
-    // Запрос с привязкой возвращаемого типа <Category>
+    const context = getRequestContext();
+    if (!context || !context.env || !context.env.DB) {
+      console.warn('D1 не подключена, используем заглушки');
+      return mockCategories;
+    }
+    const db = context.env.DB;
     const response = await db.prepare('SELECT * FROM categories').all<Category>();
-    return response.results.length > 0 ? response.results : mockCategories;
+    return (response.results && response.results.length > 0) ? response.results : mockCategories;
   } catch (error) {
-    console.error('Ошибка D1: таблица категорий не найдена, используем заглушки');
+    console.error('Ошибка D1:', error);
     return mockCategories;
   }
 }
 
 export async function getProducts(categorySlug?: string): Promise<Product[]> {
   try {
-    const env = getRequestContext().env as unknown as CloudflareEnv;
-    const db = env.DB;
+    const context = getRequestContext();
+    if (!context || !context.env || !context.env.DB) {
+      return getMockProducts(categorySlug);
+    }
+    const db = context.env.DB;
     
     if (categorySlug) {
       const response = await db.prepare(`
@@ -110,14 +114,31 @@ export async function getProducts(categorySlug?: string): Promise<Product[]> {
         WHERE c.slug = ?
       `).bind(categorySlug).all<Product>();
       
-      return response.results.length > 0 ? response.results : getMockProducts(categorySlug);
+      return (response.results && response.results.length > 0) ? response.results : getMockProducts(categorySlug);
     } else {
       const response = await db.prepare('SELECT * FROM products').all<Product>();
-      return response.results.length > 0 ? response.results : getMockProducts();
+      return (response.results && response.results.length > 0) ? response.results : getMockProducts();
     }
   } catch (error) {
-    console.error('Ошибка D1: таблица товаров не найдена, используем заглушки');
+    console.error('Ошибка D1:', error);
     return getMockProducts(categorySlug);
+  }
+}
+
+// НОВАЯ ФУНКЦИЯ ДЛЯ ШАГА 1 (Получение конкретного товара по ID)
+export async function getProductById(id: number): Promise<Product | null> {
+  try {
+    const context = getRequestContext();
+    if (!context || !context.env || !context.env.DB) {
+      return mockProducts.find(p => p.id === id) || null;
+    }
+    const db = context.env.DB;
+    
+    const response = await db.prepare('SELECT * FROM products WHERE id = ?').bind(id).all<Product>();
+    return (response.results && response.results.length > 0) ? response.results[0] : (mockProducts.find(p => p.id === id) || null);
+  } catch (error) {
+    console.error('Ошибка D1: товар не найден, ищем в заглушках');
+    return mockProducts.find(p => p.id === id) || null;
   }
 }
 
