@@ -1,4 +1,5 @@
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic'; // <- ВОТ ТА САМАЯ ВОЛШЕБНАЯ СТРОЧКА!
 
 import { getCategories, getProducts } from "@/lib/db";
 import Link from "next/link";
