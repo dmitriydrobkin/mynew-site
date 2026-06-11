@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
+import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import CartSlideOver from "@/components/cart/CartSlideOver";
+
+const playfair = Playfair_Display({ subsets: ["latin", "cyrillic"], variable: "--font-playfair" });
+const inter = Inter({ subsets: ["latin", "cyrillic"], variable: "--font-inter" });
 
 // Глобальная генерация метаданных для всего приложения.
 // Позволяет улучшить SEO и красиво отображать ссылки в мессенджерах.
@@ -63,7 +68,7 @@ export default function RootLayout({
 
   return (
     <html lang="ru">
-      <body className="flex flex-col min-h-screen">
+      <body className={`flex flex-col min-h-screen ${playfair.variable} ${inter.variable} font-sans bg-milk text-chocolate`}>
         {/* Интеграция JSON-LD в секцию head или body */}
         <script
           type="application/ld+json"
@@ -74,6 +79,7 @@ export default function RootLayout({
           {children}
         </main>
         <Footer />
+        <CartSlideOver />
       </body>
     </html>
   );
