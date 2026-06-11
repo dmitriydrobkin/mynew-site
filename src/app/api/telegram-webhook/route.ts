@@ -42,9 +42,46 @@ export async function POST(request: NextRequest) {
 
       console.log(`Получено сообщение от ${chatId}: ${text}`);
 
-      // Здесь должна быть логика обработки команд (например, /start, /admin и т.д.)
-      // Обратите внимание, что для ответа нужно отправлять fetch-запрос к Telegram API:
-      // fetch(`https://api.telegram.org/bot<ВАШ_ТОКЕН>/sendMessage`, { ... })
+      // Обработка внутреннего вызова из /api/orders (формат: INTERNAL_ORDER|id|name|phone|total|itemsCount)
+      if (text.startsWith("INTERNAL_ORDER|")) {
+        const parts = text.split("|");
+        const orderId = parts[1];
+        const customerName = parts[2];
+        const customerPhone = parts[3];
+        const totalAmount = parts[4];
+        const itemsCount = parts[5];
+
+        const messageTemplate = `New Order #${orderId}!\nClient: ${customerName}, Phone: ${customerPhone}.\nAmount: ${totalAmount} грн.\nOrder composition: ${itemsCount} items.`;
+
+        // В следующем шаге мы добавим логику отправки этого шаблона через Telegram API
+        console.log("Сформирован шаблон для Telegram:\n", messageTemplate);
+
+        // Отправка запроса в Telegram Bot API
+        // В Cloudflare Pages переменные окружения доступны через process.env (если настроены правильно)
+        // или через context.env в зависимости от байндингов, но Next.js on Pages полифиллит process.env
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        const targetChatId = process.env.TELEGRAM_CHAT_ID;
+
+        if (botToken && targetChatId) {
+          try {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                chat_id: targetChatId,
+                text: messageTemplate,
+              }),
+            });
+            console.log("Уведомление успешно отправлено в Telegram");
+          } catch (err) {
+            console.error("Ошибка при отправке в Telegram API:", err);
+          }
+        } else {
+          console.warn("TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не установлены. Уведомление не отправлено.");
+        }
+      }
     }
 
     // Всегда возвращаем 200 OK, чтобы Telegram не переотправлял запрос
